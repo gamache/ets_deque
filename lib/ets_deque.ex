@@ -17,7 +17,7 @@ defmodule EtsDeque do
 
   defstruct [:table, :size, :length, :head]
 
-  @opaque t :: %__MODULE__{}
+  @type t :: %__MODULE__{}
 
   @doc ~S"""
   Creates a deque, optionally limited to a given size.
@@ -179,7 +179,7 @@ defmodule EtsDeque do
   Returns the item at the tail of the queue, or `:error` if the queue
   is empty.
   """
-  @spec peek_head(t) :: {:ok, any} | :error
+  @spec peek_tail(t) :: {:ok, any} | :error
   def peek_tail(deque) do
     if deque.length == 0 do
       :error
@@ -268,6 +268,7 @@ defmodule EtsDeque do
   end
 
   @doc false
+  @spec new_head(t, integer) :: integer
   def new_head(%{size: :infinity} = deque, increment) do
     deque.head + increment
   end

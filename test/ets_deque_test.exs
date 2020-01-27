@@ -1,6 +1,7 @@
 defmodule EtsDequeTest do
   use ExUnit.Case
   doctest EtsDeque
+  doctest EtsDeque.Server
 
   test "push_head and pop_head" do
     deque = EtsDeque.new()
@@ -52,15 +53,6 @@ defmodule EtsDequeTest do
     assert {:ok, :world} = deque |> EtsDeque.peek_tail()
   end
 
-  test "to_list" do
-    deque = EtsDeque.new()
-    assert {:ok, deque} = deque |> EtsDeque.push_tail(:hello)
-    assert {:ok, deque} = deque |> EtsDeque.push_tail(:world)
-    assert [:hello, :world] = deque |> EtsDeque.to_list()
-    assert [:hello, :world] = deque |> EtsDeque.to_list()
-    assert 2 == deque |> EtsDeque.length()
-  end
-
   test "Collectable" do
     deque = Enum.into([:hello, :world], EtsDeque.new())
     assert {:ok, :hello, deque} = deque |> EtsDeque.pop_head()
@@ -95,6 +87,7 @@ defmodule EtsDequeTest do
     deque = EtsDeque.new()
     assert {:ok, deque} = deque |> EtsDeque.push_tail(:hello)
     assert {:ok, deque} = deque |> EtsDeque.push_tail(:world)
+    assert [:hello, :world] = Enum.to_list(deque)
 
     ## count
     assert 2 == Enum.count(deque)
@@ -146,5 +139,34 @@ defmodule EtsDequeTest do
     assert_raise ArgumentError, fn -> deque |> EtsDeque.pop_tail!() end
     assert_raise ArgumentError, fn -> EtsDeque.at!(deque, 22) end
     assert_raise ArgumentError, fn -> EtsDeque.replace_at!(deque, 22, 22) end
+  end
+
+  test "Server" do
+    assert {:ok, pid} = EtsDeque.Server.start_link(size: 2)
+    assert :ok = EtsDeque.Server.push_head(pid, :hello)
+    assert :ok = EtsDeque.Server.push_tail(pid, :world)
+    assert {:ok, :hello} = EtsDeque.Server.peek_head(pid)
+    assert {:ok, :world} = EtsDeque.Server.peek_tail(pid)
+    assert {:ok, :world} = EtsDeque.Server.at(pid, 1)
+    assert :ok = EtsDeque.Server.replace_at(pid, 1, :there)
+    assert [:hello, :there] = EtsDeque.Server.execute(pid, &Enum.to_list/1)
+    assert {:ok, :hello} = EtsDeque.Server.pop_head(pid)
+    assert {:ok, :there} = EtsDeque.Server.pop_tail(pid)
+    assert :error = EtsDeque.Server.pop_tail(pid)
+    assert 0 == EtsDeque.Server.length(pid)
+    assert 2 == EtsDeque.Server.size(pid)
+    assert %EtsDeque{length: 0} = EtsDeque.Server.deque(pid)
+  end
+
+  test "big deque" do
+    deque =
+      1..1_000_000
+      |> Enum.reduce(EtsDeque.new(), fn i, deque ->
+        EtsDeque.push_tail!(deque, i)
+      end)
+
+    assert 1_000_000 == EtsDeque.length(deque)
+    assert {1, deque} = EtsDeque.pop_head!(deque)
+    assert {1_000_000, deque} = EtsDeque.pop_tail!(deque)
   end
 end

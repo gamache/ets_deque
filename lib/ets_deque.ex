@@ -1,7 +1,16 @@
 defmodule EtsDeque do
   @moduledoc """
-  EtsDeque is an implementation of a double-ended queue (deque), using
+  EtsDeque is an Elixir implementation of a double-ended queue (deque), using
   Erlang's ETS library as a backing store.
+
+  Using ETS ensures that all functions in the `EtsDeque` module execute in
+  amortized O(1) time with a minimum of memory allocations, offering bounded
+  or unbounded operation with high performance and favorable RAM usage.
+
+  Using ETS also means that `EtsDeque` is not a purely functional data
+  structure, and is not suitable for direct concurrent usage in multiple
+  processes.  Use the `EtsDeque.Server` GenServer if you would like safe
+  access to an `EtsDeque` from multiple processes.
 
   You can push items onto, pop items from, or peek at items from the head
   or tail of the queue.  Additionally, any item can be accessed or replaced
@@ -13,6 +22,18 @@ defmodule EtsDeque do
   [Collectable](https://hexdocs.pm/elixir/Collectable.html) protocols,
   so code like `deque[0]` and `Enum.count(deque)` and
   `Enum.into([1, 2, 3], EtsDeque.new())` works as it should.
+
+  ## Example
+
+      iex> deque = EtsDeque.new(3)
+      iex> {:ok, deque} = EtsDeque.push_head(deque, :moe)
+      iex> {:ok, deque} = EtsDeque.push_tail(deque, :larry)
+      iex> {:ok, deque} = EtsDeque.push_tail(deque, :curly)
+      iex> :error = EtsDeque.push_head(deque, :shemp)  ## deque is full
+      iex> {:ok, :curly, deque} = EtsDeque.pop_tail(deque)
+      iex> {:ok, deque} = EtsDeque.push_tail(deque, :shemp)
+      iex> Enum.to_list(deque)
+      [:moe, :larry, :shemp]
   """
 
   defstruct [:table, :size, :length, :head]
@@ -29,10 +50,16 @@ defmodule EtsDeque do
   end
 
   @doc ~S"""
-  Returns the number of items in the given deque.
+  Returns the number of items in the given deque. Equivalent to `deque.length`.
   """
   @spec length(t) :: non_neg_integer
   def length(deque), do: deque.length
+
+  @doc ~S"""
+  Returns the maximum capacity of the given deque. Equivalent to `deque.size`.
+  """
+  @spec size(t) :: non_neg_integer | :infinity
+  def size(deque), do: deque.size
 
   @doc ~S"""
   Adds an item onto the head of the queue. Returns the updated deque,
@@ -252,19 +279,6 @@ defmodule EtsDeque do
       {:ok, deque} -> deque
       :error -> raise ArgumentError, "index #{index} out of bounds"
     end
-  end
-
-  @doc ~S"""
-  Returns the contents of the deque as a list.
-  """
-  @spec to_list(t) :: [any]
-  def to_list(%{length: 0}), do: []
-
-  def to_list(deque) do
-    Enum.reduce((deque.length - 1)..0, [], fn index, acc ->
-      {:ok, item} = at(deque, index)
-      [item | acc]
-    end)
   end
 
   @doc false
